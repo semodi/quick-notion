@@ -1,0 +1,23 @@
+#!python3
+import sys
+
+from quick_notion.connection import Connection
+from quick_notion.models import PageModel
+from quick_notion.pages import page_registry
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or (len(sys.argv) == 2 and sys.argv[1] in ['-h','--help']):
+        print('Please pick mode from:')
+        for mode in page_registry:
+            print('\t', mode)
+        sys.exit(0)
+    mode = sys.argv[1]
+    if not mode in page_registry:
+        raise ValueError(f"Mode {mode} not supported")
+
+    conn = Connection
+    client = conn.client
+    db = conn.get_db(mode)
+    page_type: PageModel = page_registry[mode]
+    page = page_type.from_cli(parent=db.obj)
+    page.create_page(client)
