@@ -7,7 +7,7 @@ from pytion.api import PropertyValue
 
 from .connection import Connection
 from .dbox import upload
-from .models import NotionField, PageModel, PagePropertyModel
+from .models import NotionField, PageHook, PageModel, PagePropertyModel
 
 page_registry = {}
 
@@ -15,6 +15,7 @@ page_registry = {}
 def page(name):
     def register_wrapper(cls):
         page_registry[name] = cls
+        return cls
 
     return register_wrapper
 
@@ -40,6 +41,18 @@ class LogProperties(PagePropertyModel):
     )
 
 
+class MediaProperties(PagePropertyModel):
+    Files: PropertyValue = NotionField(
+        [], notion_type="relation", cli_flag=None, related_db="file"
+    )
+    Tags: PropertyValue = NotionField(
+        ["From CLI"], notion_type="multi_select", cli_flag=None
+    )
+    Type: PropertyValue = NotionField(
+        "Academic Journal", notion_type="select", cli_flag=None
+    )
+
+
 class FileProperties(PagePropertyModel):
     Path: PropertyValue = NotionField(..., notion_type="rich_text", cli_flag="path")
     Device: PropertyValue = NotionField(
@@ -58,7 +71,10 @@ class FileProperties(PagePropertyModel):
         [], notion_type="relation", cli_flag="--tasks", related_db="task"
     )
     Staging: PropertyValue = NotionField(True, notion_type="checkbox", cli_flag=None)
-    Link: PropertyValue = NotionField("", notion_type="rich_text", cli_flag="--upload")
+    Link: PropertyValue = NotionField("", notion_type="url", cli_flag="--upload")
+    is_paper: PropertyValue = NotionField(
+        False, notion_type="checkbox", cli_flag="--paper"
+    )
     dropbox_path: PropertyValue = NotionField(
         "", notion_type="rich_text", cli_flag=None
     )
@@ -69,7 +85,7 @@ class FileProperties(PagePropertyModel):
 
     @root_validator
     def upload_file(cls, values):
-        if "Link" in values and values["Link"]:
+        if "Link" in values and values["Link"].value:
             dbx = dropbox.Dropbox(Connection.config["dropbox-token"])
             res = upload(
                 dbx,
@@ -80,7 +96,7 @@ class FileProperties(PagePropertyModel):
                 overwrite=True,
             )
             link = dbx.sharing_create_shared_link(res.path_lower).url
-            values["Link"] = PropertyValue.create("rich_text", link)
+            values["Link"] = PropertyValue.create("url", link)
             values["dropbox_path"] = PropertyValue.create("rich_text", res.path_lower)
         return values
 
@@ -90,11 +106,24 @@ class Task(PageModel):
     properties: TaskProperties
 
 
-@page("file")
-class File(PageModel):
-    properties: FileProperties
-
-
 @page("log")
 class Log(PageModel):
     properties: LogProperties
+
+
+@page("paper")
+class Paper(PageModel):
+    properties: MediaProperties
+
+
+@page("file")
+class File(PageModel):
+    properties: FileProperties
+    _hooks: list[PageHook] = [
+        PageHook(
+            page_model=Paper,
+            parent=Connection.get_db("media").obj,
+            property_map={},
+            foreign_relation="Files",
+        )
+    ]
