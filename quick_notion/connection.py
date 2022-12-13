@@ -1,12 +1,14 @@
+from pathlib import Path
+
 import yaml
 from pytion import Notion
 from pytion.api import Element
-from pathlib import Path
 
 
 def _load_config():
     config_loc = Path("~/.notion/config.yaml").expanduser().resolve()
-    return  yaml.safe_load(open(config_loc))
+    return yaml.safe_load(open(config_loc))
+
 
 @lambda x: x()
 class Connection:
