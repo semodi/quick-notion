@@ -54,7 +54,10 @@ class PagePropertyModel(BaseModel):
     def validate_notion_fields(cls, v, field):
         notion_type = field.field_info.extra["notion_type"]
         if notion_type == "relation":
-            return v
+            if not v:
+                return PropertyValue.create('relation', [])
+            else:
+                return v
         return PropertyValue.create(notion_type, v)
 
 
